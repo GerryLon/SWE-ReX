@@ -158,44 +158,36 @@ class DockerDeployment(AbstractDeployment):
             pip_index_arg = f" --index-url {self._config.pip_index_url}"
         else:
             pip_index_arg = ""
+        # Use configured python_standalone_dir or default to /root
+        python_dir = self._config.python_standalone_dir or "/root"
+        
         return (
             "ARG BASE_IMAGE\n\n"
-            # Build stage for standalone Python
-            f"FROM {platform_arg} python:3.11.9-slim-bookworm AS builder\n"
-            # Install build dependencies
-            "RUN apt-get update && apt-get install -y \\\n"
-            "    wget \\\n"
-            "    gcc \\\n"
-            "    make \\\n"
-            "    zlib1g-dev \\\n"
-            "    libssl-dev \\\n"
-            "    && rm -rf /var/lib/apt/lists/*\n\n"
-            # Download and compile Python as standalone
-            "WORKDIR /build\n"
-            "RUN wget https://www.python.org/ftp/python/3.11.8/Python-3.11.8.tgz \\\n"
-            "    && tar xzf Python-3.11.8.tgz\n"
-            "WORKDIR /build/Python-3.11.8\n"
-            "RUN ./configure \\\n"
-            "    --prefix=/root/python3.11 \\\n"
-            "    --enable-shared \\\n"
-            "    LDFLAGS='-Wl,-rpath=/root/python3.11/lib' && \\\n"
-            "    make -j$(nproc) && \\\n"
-            "    make install && \\\n"
-            "    ldconfig\n\n"
             # Production stage
             f"FROM {platform_arg} $BASE_IMAGE\n"
-            # Ensure we have the required runtime libraries
+            # Install runtime dependencies
             "RUN apt-get update && apt-get install -y \\\n"
-            "    libc6 \\\n"
-            "    && rm -rf /var/lib/apt/lists/*\n"
-            # Copy the standalone Python installation
-            f"COPY --from=builder /root/python3.11 {self._config.python_standalone_dir}/python3.11\n"
-            f"ENV LD_LIBRARY_PATH={self._config.python_standalone_dir}/python3.11/lib:${{LD_LIBRARY_PATH:-}}\n"
+            "    wget \\\n"
+            "    ca-certificates \\\n"
+            "    && rm -rf /var/lib/apt/lists/*\n\n"
+            # Download and install pre-compiled Python 3.11 (compatible with older GLIBC)
+            "RUN wget https://github.com/indygreg/python-build-standalone/releases/download/20231002/cpython-3.11.6+20231002-x86_64-unknown-linux-gnu-install_only.tar.gz \\\n"
+            f"    && tar -xzf cpython-3.11.6+20231002-x86_64-unknown-linux-gnu-install_only.tar.gz -C {python_dir}/ \\\n"
+            f"    && mv {python_dir}/python {python_dir}/python3.11 \\\n"
+            "    && rm cpython-3.11.6+20231002-x86_64-unknown-linux-gnu-install_only.tar.gz\n\n"
+            # Set environment variables
+            f"ENV PATH=\"{python_dir}/python3.11/bin:$PATH\"\n"
+            f"ENV LD_LIBRARY_PATH=\"{python_dir}/python3.11/lib:${{LD_LIBRARY_PATH:-}}\"\n\n"
+            # Verify Python installation
+            f"RUN {python_dir}/python3.11/bin/python3 --version\n"
+            f"RUN {python_dir}/python3.11/bin/python3 -c \"import sys; print(f'Python {{sys.version}}')\"\n\n"
+            # Upgrade pip
+            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --upgrade pip\n\n"
+            # Install swe-rex
+            f"RUN {python_dir}/python3.11/bin/pip3 install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
+            # Create symbolic link
+            f"RUN ln -sf {python_dir}/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             # Verify installation
-            f"RUN {self._config.python_standalone_dir}/python3.11/bin/python3 --version\n"
-            # Install swe-rex using the standalone Python
-            f"RUN /root/python3.11/bin/pip3 install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
-            f"RUN ln -s /root/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
         )
 
