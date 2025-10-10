@@ -189,6 +189,10 @@ class DockerDeployment(AbstractDeployment):
             f"RUN ln -sf {python_dir}/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             # Verify installation
             f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
+            # add entrypoint ["/bin/bash"]
+            # 有的镜像, 如:  docker image inspect jefzda/sweap-images:ansible.ansible-ansible__ansible-f327e65d11bb905ed9f15996024f857a95592629-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5 --format='{{.Config.Entrypoint}}'
+            # 没有entrypoint, 但是大部分都是 ENTRYPOINT ["/bin/bash"], 这里对于没有的强制覆盖
+            "ENTRYPOINT [\"/bin/bash\"]\n"
         )
 
     def _build_image(self) -> str:
