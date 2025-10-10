@@ -158,6 +158,10 @@ class DockerDeployment(AbstractDeployment):
             pip_index_arg = f" --index-url {self._config.pip_index_url}"
         else:
             pip_index_arg = ""
+        
+        # Use configured python_standalone_dir or default to /root
+        python_dir = self._config.python_standalone_dir or "/root"
+        
         return (
             "ARG BASE_IMAGE\n\n"
             # Build stage for standalone Python
@@ -184,18 +188,35 @@ class DockerDeployment(AbstractDeployment):
             "    ldconfig\n\n"
             # Production stage
             f"FROM {platform_arg} $BASE_IMAGE\n"
-            # Ensure we have the required runtime libraries
+            # Install runtime libraries first
             "RUN apt-get update && apt-get install -y \\\n"
-            "    libc6 \\\n"
+            "    ca-certificates \\\n"
+            "    libssl1.1 \\\n"
+            "    libffi7 \\\n"
             "    && rm -rf /var/lib/apt/lists/*\n"
+            # Copy compatible GLIBC libraries from builder stage
+            "COPY --from=builder /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/libm.so.6 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/libdl.so.2 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/libpthread.so.0 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/librt.so.1 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib64/ld-linux-x86-64.so.2 /lib64/\n"
+            # Copy SSL libraries from builder stage (Debian 12 has libssl.so.3)
+            "COPY --from=builder /lib/x86_64-linux-gnu/libssl.so.3 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/libcrypto.so.3 /lib/x86_64-linux-gnu/\n"
+            "COPY --from=builder /lib/x86_64-linux-gnu/libffi.so.8 /lib/x86_64-linux-gnu/\n"
             # Copy the standalone Python installation
-            f"COPY --from=builder /root/python3.11 {self._config.python_standalone_dir}/python3.11\n"
-            f"ENV LD_LIBRARY_PATH={self._config.python_standalone_dir}/python3.11/lib:${{LD_LIBRARY_PATH:-}}\n"
+            f"COPY --from=builder /root/python3.11 {python_dir}/python3.11\n"
+            f"ENV LD_LIBRARY_PATH={python_dir}/python3.11/lib:${{LD_LIBRARY_PATH:-}}\n"
             # Verify installation
-            f"RUN {self._config.python_standalone_dir}/python3.11/bin/python3 --version\n"
+            f"RUN {python_dir}/python3.11/bin/python3 --version\n"
+            # Debug: Check what libraries Python can find
+            f"RUN ldd {python_dir}/python3.11/bin/python3 | head -10\n"
+            # Test SSL module availability
+            f"RUN {python_dir}/python3.11/bin/python3 -c \"import ssl; print('SSL module available')\"\n"
             # Install swe-rex using the standalone Python
-            f"RUN /root/python3.11/bin/pip3 install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
-            f"RUN ln -s /root/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
+            f"RUN {python_dir}/python3.11/bin/pip3 install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
+            f"RUN ln -s {python_dir}/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
         )
 
