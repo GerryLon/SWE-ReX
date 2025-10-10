@@ -188,11 +188,15 @@ class DockerDeployment(AbstractDeployment):
             "    ldconfig\n\n"
             # Production stage
             f"FROM {platform_arg} $BASE_IMAGE\n"
-            # Install runtime libraries first
+            # Install runtime libraries first (try multiple package names for different distros)
             "RUN apt-get update && apt-get install -y \\\n"
             "    ca-certificates \\\n"
-            "    libssl1.1 \\\n"
-            "    libffi7 \\\n"
+            "    libssl3 libssl1.1 \\\n"
+            "    libffi8 libffi7 \\\n"
+            "    || apt-get install -y \\\n"
+            "    ca-certificates \\\n"
+            "    libssl3 \\\n"
+            "    libffi8 \\\n"
             "    && rm -rf /var/lib/apt/lists/*\n"
             # Copy compatible GLIBC libraries from builder stage
             "COPY --from=builder /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/\n"
