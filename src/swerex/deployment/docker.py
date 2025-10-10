@@ -152,6 +152,12 @@ class DockerDeployment(AbstractDeployment):
             platform_arg = f"--platform={self._config.platform}"
         else:
             platform_arg = ""
+        
+        # Prepare pip index URL argument
+        if self._config.pip_index_url:
+            pip_index_arg = f" --index-url {self._config.pip_index_url}"
+        else:
+            pip_index_arg = ""
         return (
             "ARG BASE_IMAGE\n\n"
             # Build stage for standalone Python
@@ -188,7 +194,7 @@ class DockerDeployment(AbstractDeployment):
             # Verify installation
             f"RUN {self._config.python_standalone_dir}/python3.11/bin/python3 --version\n"
             # Install swe-rex using the standalone Python
-            f"RUN /root/python3.11/bin/pip3 install --no-cache-dir {PACKAGE_NAME}\n\n"
+            f"RUN /root/python3.11/bin/pip3 install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
             f"RUN ln -s /root/python3.11/bin/{REMOTE_EXECUTABLE_NAME} /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
         )

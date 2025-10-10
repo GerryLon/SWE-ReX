@@ -45,6 +45,8 @@ class DockerDeploymentConfig(BaseModel):
     """The container runtime to use (docker or podman)."""
     exec_shell: list[str] = ["/bin/sh", "-c"]
     """The shell executable and arguments to use for running commands."""
+    pip_index_url: str | None = None
+    """The pip index URL to use for installing packages. If None, uses pip's default."""
 
     type: Literal["docker"] = "docker"
     """Discriminator for (de)serialization/CLI. Do not change."""
