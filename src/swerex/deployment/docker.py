@@ -231,10 +231,10 @@ class DockerDeployment(AbstractDeployment):
             # Verify Python installation
             f"RUN {python_dir}/python3.11/bin/python3 --version\n"
             f"RUN {python_dir}/python3.11/bin/python3 -c \"import sys; print(f'Python {{sys.version}}')\"\n\n"
-            # Upgrade pip
-            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --upgrade pip\n\n"
-            # Install swe-rex
-            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
+            # Upgrade pip (with fallback for older Alpine versions)
+            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --upgrade pip --break-system-packages || {python_dir}/python3.11/bin/python3 -m pip install --upgrade pip\n\n"
+            # Install swe-rex (with fallback for older Alpine versions)
+            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME} --break-system-packages || {python_dir}/python3.11/bin/python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
             # Create symbolic link from actual installation location to expected location
             f"RUN ACTUAL_PATH=$(which {REMOTE_EXECUTABLE_NAME}) && ln -sf $ACTUAL_PATH {python_dir}/python3.11/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             # Verify installation
