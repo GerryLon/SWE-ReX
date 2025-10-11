@@ -250,7 +250,7 @@ class DockerDeployment(AbstractDeployment):
         dockerfile = self.glibc_dockerfile
         dockerfile_alpine = self.glibc_dockerfile_alpine
         dockerfiles = {
-            "ununtu": dockerfile,
+            "ubuntu": dockerfile,
             "alpine": dockerfile_alpine,
         }
 
@@ -269,6 +269,7 @@ class DockerDeployment(AbstractDeployment):
 
         # 基础镜像可能有多个发行版, 逐个尝试
         for release_name, dockerfile in dockerfiles.items():
+            self.logger.info(f"start build image with dockerfile: {release_name}")
             try:
                 image_id = (
                     subprocess.check_output(
