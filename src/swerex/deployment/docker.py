@@ -279,13 +279,14 @@ class DockerDeployment(AbstractDeployment):
                     .decode()
                     .strip()
                 )
-            except subprocess.CalledProcessError as e:
+            except Exception as e:
                 self.logger.error(f"Failed to build image with dockerfile: {release_name}. Error: {e.stderr.decode()}")
                 continue
 
-            if not image_id.startswith("sha256:"):
+            if image_id and (not image_id.startswith("sha256:")):
                 msg = f"Failed to build image with dockerfile: {release_name}. Image ID is not a SHA256: {image_id}"
                 raise RuntimeError(msg)
+
             self.logger.info(f"Built image with dockerfile: {release_name}, image_id: {image_id}")
             return image_id
 
