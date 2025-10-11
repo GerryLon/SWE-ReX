@@ -222,17 +222,21 @@ class DockerDeployment(AbstractDeployment):
             "    python3 \\\n"
             "    py3-pip\n\n"
             # Set environment variables for system Python
-            "ENV PATH=\"/usr/bin:$PATH\"\n"
-            "ENV PYTHONPATH=\"/usr/lib/python3.11/site-packages\"\n\n"
+            f"ENV PATH=\"{python_dir}/python3.11/bin:$PATH\"\n"
+            f"ENV LD_LIBRARY_PATH=\"{python_dir}/python3.11/lib:${{LD_LIBRARY_PATH:-}}\"\n\n"
+            # Create python3.11 directory structure to match glibc version
+            f"RUN mkdir -p {python_dir}/python3.11/bin \\\n"
+            f"    && ln -sf /usr/bin/python3 {python_dir}/python3.11/bin/python3 \\\n"
+            f"    && ln -sf /usr/bin/python3 {python_dir}/python3.11/bin/python3.11\n\n"
             # Verify Python installation
-            "RUN python3 --version\n"
-            "RUN python3 -c \"import sys; print(f'Python {sys.version}')\"\n\n"
+            f"RUN {python_dir}/python3.11/bin/python3 --version\n"
+            f"RUN {python_dir}/python3.11/bin/python3 -c \"import sys; print(f'Python {{sys.version}}')\"\n\n"
             # Upgrade pip
-            "RUN python3 -m pip install --upgrade pip\n\n"
+            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --upgrade pip\n\n"
             # Install swe-rex
-            f"RUN python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
-            # Create symbolic link
-            f"RUN ln -sf /usr/bin/python3 /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
+            f"RUN {python_dir}/python3.11/bin/python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
+            # Create symbolic link from actual installation location to expected location
+            f"RUN ACTUAL_PATH=$(which {REMOTE_EXECUTABLE_NAME}) && ln -sf $ACTUAL_PATH {python_dir}/python3.11/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
             # Verify installation
             f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
             # add entrypoint ["/bin/bash"]
