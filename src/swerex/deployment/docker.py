@@ -195,6 +195,52 @@ class DockerDeployment(AbstractDeployment):
             "ENTRYPOINT [\"/bin/bash\"]\n"
         )
 
+    @property
+    def glibc_dockerfile_alpine(self) -> str:
+        # will only work with glibc-based systems
+        if self._config.platform:
+            platform_arg = f"--platform={self._config.platform}"
+        else:
+            platform_arg = ""
+        
+        # Prepare pip index URL argument
+        if self._config.pip_index_url:
+            pip_index_arg = f" --index-url {self._config.pip_index_url}"
+        else:
+            pip_index_arg = ""
+        # Use configured python_standalone_dir or default to /root
+        python_dir = self._config.python_standalone_dir or "/root"
+        
+        return (
+            "ARG BASE_IMAGE\n\n"
+            # Production stage
+            f"FROM {platform_arg} $BASE_IMAGE\n"
+            # Install runtime dependencies for Alpine (apk)
+            "RUN apk update && apk add --no-cache \\\n"
+            "    wget \\\n"
+            "    ca-certificates \\\n"
+            "    python3 \\\n"
+            "    py3-pip\n\n"
+            # Set environment variables for system Python
+            "ENV PATH=\"/usr/bin:$PATH\"\n"
+            "ENV PYTHONPATH=\"/usr/lib/python3.11/site-packages\"\n\n"
+            # Verify Python installation
+            "RUN python3 --version\n"
+            "RUN python3 -c \"import sys; print(f'Python {sys.version}')\"\n\n"
+            # Upgrade pip
+            "RUN python3 -m pip install --upgrade pip\n\n"
+            # Install swe-rex
+            f"RUN python3 -m pip install --no-cache-dir{pip_index_arg} {PACKAGE_NAME}\n\n"
+            # Create symbolic link
+            f"RUN ln -sf /usr/bin/python3 /usr/local/bin/{REMOTE_EXECUTABLE_NAME}\n\n"
+            # Verify installation
+            f"RUN {REMOTE_EXECUTABLE_NAME} --version\n"
+            # add entrypoint ["/bin/bash"]
+            # 有的镜像, 如:  docker image inspect jefzda/sweap-images:ansible.ansible-ansible__ansible-f327e65d11bb905ed9f15996024f857a95592629-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5 --format='{{.Config.Entrypoint}}'
+            # 没有entrypoint, 但是大部分都是 ENTRYPOINT ["/bin/bash"], 这里对于没有的强制覆盖
+            "ENTRYPOINT [\"/bin/bash\"]\n"
+        )
+
     def _build_image(self) -> str:
         """Builds image, returns image ID."""
         self.logger.info(
@@ -202,6 +248,12 @@ class DockerDeployment(AbstractDeployment):
             "This might take a while (but you only have to do it once). To skip this step, set `python_standalone_dir` to None."
         )
         dockerfile = self.glibc_dockerfile
+        dockerfile_alpine = self.glibc_dockerfile_alpine
+        dockerfiles = {
+            "ununtu": dockerfile,
+            "alpine": dockerfile_alpine,
+        }
+
         platform_arg = []
         if self._config.platform:
             platform_arg = ["--platform", self._config.platform]
@@ -214,18 +266,32 @@ class DockerDeployment(AbstractDeployment):
             f"BASE_IMAGE={self._config.image}",
             "-",
         ]
-        image_id = (
-            subprocess.check_output(
-                build_cmd,
-                input=dockerfile.encode(),
-            )
-            .decode()
-            .strip()
-        )
-        if not image_id.startswith("sha256:"):
-            msg = f"Failed to build image. Image ID is not a SHA256: {image_id}"
-            raise RuntimeError(msg)
-        return image_id
+
+        # 基础镜像可能有多个发行版, 逐个尝试
+        for release_name, dockerfile in dockerfiles.items():
+            try:
+                image_id = (
+                    subprocess.check_output(
+                        build_cmd,
+                        input=dockerfile.encode(),
+                        stderr=subprocess.PIPE,
+                    )
+                    .decode()
+                    .strip()
+                )
+            except subprocess.CalledProcessError as e:
+                self.logger.error(f"Failed to build image with dockerfile: {release_name}. Error: {e.stderr.decode()}")
+                continue
+
+            if not image_id.startswith("sha256:"):
+                msg = f"Failed to build image with dockerfile: {release_name}. Image ID is not a SHA256: {image_id}"
+                raise RuntimeError(msg)
+            self.logger.info(f"Built image with dockerfile: {release_name}, image_id: {image_id}")
+            return image_id
+
+        msg = f"Failed to build image with any dockerfile. Image ID is not a SHA256: {image_id}"
+        self.logger.error(msg)
+        raise RuntimeError(msg)
 
     async def start(self):
         """Starts the runtime."""
