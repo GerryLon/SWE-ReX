@@ -271,6 +271,7 @@ class DockerDeployment(AbstractDeployment):
             "-",
         ]
 
+        image_id = None
         # 基础镜像可能有多个发行版, 逐个尝试
         for release_name, dockerfile in dockerfiles.items():
             self.logger.info(f"start build image with dockerfile: {release_name}")
