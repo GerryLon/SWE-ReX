@@ -43,7 +43,7 @@ class DockerDeploymentConfig(BaseModel):
     """Whether to remove the container after it has stopped."""
     container_runtime: Literal["docker", "podman"] = "docker"
     """The container runtime to use (docker or podman)."""
-    exec_shell: list[str] = ["/bin/sh", "-c"]
+    exec_shell: list[str] = ["-c"]
     """The shell executable and arguments to use for running commands."""
     pip_index_url: str | None = "https://pypi.org/simple"
     """The pip index URL to use for installing packages. If None, uses pip's default."""
