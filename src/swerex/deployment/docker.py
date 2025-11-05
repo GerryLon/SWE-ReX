@@ -271,6 +271,7 @@ class DockerDeployment(AbstractDeployment):
             f"BASE_IMAGE={self._config.image}",
             "-",
         ]
+        build_cmd_str = " ".join(build_cmd)
         self.logger.info(f"docker build command:{build_cmd_str}")
 
         image_id = None
