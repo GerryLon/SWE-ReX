@@ -257,6 +257,7 @@ class DockerDeployment(AbstractDeployment):
             "ubuntu": dockerfile,
             "alpine": dockerfile_alpine,
         }
+        self.logger.info(f"Dockerfile content:{dockerfile}")
 
         platform_arg = []
         if self._config.platform:
@@ -270,6 +271,7 @@ class DockerDeployment(AbstractDeployment):
             f"BASE_IMAGE={self._config.image}",
             "-",
         ]
+        self.logger.info(f"docker build command:{build_cmd_str}")
 
         image_id = None
         # 基础镜像可能有多个发行版, 逐个尝试
