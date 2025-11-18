@@ -253,10 +253,10 @@ class DockerDeployment(AbstractDeployment):
         )
         dockerfile = self.glibc_dockerfile
         dockerfile_alpine = self.glibc_dockerfile_alpine
-        dockerfiles = {
-            "ubuntu": dockerfile,
-            "alpine": dockerfile_alpine,
-        }
+        dockerfiles = [
+            ("ubuntu", dockerfile),
+            ("alpine", dockerfile_alpine),
+        ]
         self.logger.info(f"Dockerfile content:{dockerfile}")
 
         platform_arg = []
@@ -276,7 +276,7 @@ class DockerDeployment(AbstractDeployment):
 
         image_id = None
         # 基础镜像可能有多个发行版, 逐个尝试
-        for release_name, dockerfile in dockerfiles.items():
+        for idx, (release_name, dockerfile) in enumerate(dockerfiles):
             self.logger.info(f"start build image with dockerfile: {release_name}")
             try:
                 image_id = (
@@ -289,7 +289,11 @@ class DockerDeployment(AbstractDeployment):
                     .strip()
                 )
             except Exception as e:
-                self.logger.error(f"Failed to build image with dockerfile: {release_name}. Error: {e.stderr.decode()}")
+                is_last = idx == len(dockerfiles) - 1
+                if is_last:
+                    self.logger.error(f"Failed to build image with dockerfile: {release_name}. Error: {e.stderr.decode()}")
+                else:
+                    self.logger.warning(f"Failed to build image with dockerfile: {release_name}. Error: {e.stderr.decode()}")
                 continue
 
             if image_id and (not image_id.startswith("sha256:")):
