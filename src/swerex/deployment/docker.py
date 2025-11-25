@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import shlex
 import subprocess
@@ -355,10 +356,19 @@ class DockerDeployment(AbstractDeployment):
         self.logger.info(f"Runtime started in {time.time() - t0:.2f}s")
 
     async def stop(self):
+        image_name = self._config.image
+        container_name = self._container_name
         """Stops the runtime."""
         if self._runtime is not None:
-            await self._runtime.close()
-            self._runtime = None
+            try:
+                # 添加超时保护
+                await asyncio.wait_for(self._runtime.close(), timeout=30.0)
+            except asyncio.TimeoutError:
+                self.logger.warning(f"Runtime close timed out, forcing container kill, image: {image_name}, container: {container_name}")
+            except Exception as e:
+                self.logger.error(f"Error closing runtime: {e}, image: {image_name}, container: {container_name}")
+            finally:
+                self._runtime = None
 
         if self._container_process is not None:
             try:
