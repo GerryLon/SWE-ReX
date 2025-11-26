@@ -360,9 +360,11 @@ class DockerDeployment(AbstractDeployment):
         container_name = self._container_name
         """Stops the runtime."""
         if self._runtime is not None:
+            self.logger.info(f"Stopping runtime, image: {image_name}, container: {container_name}")
             try:
                 # 添加超时保护
                 await asyncio.wait_for(self._runtime.close(), timeout=30.0)
+                self.logger.info(f"Runtime stopped: image: {image_name}, container: {container_name}")
             except asyncio.TimeoutError:
                 self.logger.warning(f"Runtime close timed out, forcing container kill, image: {image_name}, container: {container_name}")
             except Exception as e:
@@ -371,6 +373,7 @@ class DockerDeployment(AbstractDeployment):
                 self._runtime = None
 
         if self._container_process is not None:
+            self.logger.info(f"Stopping container, image: {image_name}, container: {container_name}")
             try:
                 subprocess.check_call(
                     [self._config.container_runtime, "kill", self._container_name],  # type: ignore
@@ -389,9 +392,10 @@ class DockerDeployment(AbstractDeployment):
                     self._container_process.wait(timeout=5)
                     break
                 except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Container {self._container_name} still running")
                     continue
             else:
-                self.logger.warning(f"Failed to kill container {self._container_name} with SIGKILL")
+                self.logger.error(f"Failed to kill container {self._container_name} with SIGKILL")
 
             self._container_process = None
             self._container_name = None
