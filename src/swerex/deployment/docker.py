@@ -371,6 +371,8 @@ class DockerDeployment(AbstractDeployment):
                 self.logger.error(f"Error closing runtime: {e}, image: {image_name}, container: {container_name}")
             finally:
                 self._runtime = None
+        else:
+            self.logger.warning(f"Runtime is None, image: {image_name}, container: {container_name}")
 
         if self._container_process is not None:
             self.logger.info(f"Stopping container, image: {image_name}, container: {container_name}")
@@ -399,6 +401,8 @@ class DockerDeployment(AbstractDeployment):
 
             self._container_process = None
             self._container_name = None
+        else:
+            self.logger.warning(f"Container process is None, image: {image_name}, container: {container_name}")
 
         if self._config.remove_images:
             if _is_image_available(self._config.image, self._config.container_runtime):
