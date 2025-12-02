@@ -363,7 +363,7 @@ class DockerDeployment(AbstractDeployment):
             self.logger.info(f"Stopping runtime, image: {image_name}, container: {container_name}")
             try:
                 # 添加超时保护
-                await asyncio.wait_for(self._runtime.close(), timeout=5.0)
+                await self._runtime.close()
                 self.logger.info(f"Runtime stopped: image: {image_name}, container: {container_name}")
             except asyncio.TimeoutError:
                 self.logger.warning(f"Runtime close timed out, forcing container kill, image: {image_name}, container: {container_name}")
