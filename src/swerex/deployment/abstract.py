@@ -43,6 +43,13 @@ class AbstractDeployment(ABC):
 
     def __del__(self):
         """Stops the runtime when the object is deleted."""
+        # Check if Python is shutting down
+        # During shutdown, sys.meta_path and other globals may be None
+        import sys
+        if sys.meta_path is None or sys is None:
+            # Python is shutting down, skip cleanup to avoid errors
+            return
+        
         # Need to be check whether we are in an async event loop or not
         # https://stackoverflow.com/questions/54770360/
         msg = "Ensuring deployment is stopped because object is deleted"
@@ -68,6 +75,9 @@ class AbstractDeployment(ABC):
                 task = loop.create_task(self.stop())
                 # 添加回调来记录任务完成情况
                 def _log_task_done(t):
+                    import sys
+                    if sys.meta_path is None:
+                        return  # Python is shutting down
                     try:
                         if t.exception():
                             try:
@@ -78,6 +88,9 @@ class AbstractDeployment(ABC):
                         pass
                 task.add_done_callback(_log_task_done)
             except Exception as e:
+                import sys
+                if sys.meta_path is None:
+                    return  # Python is shutting down
                 try:
                     self.logger.error(f"Failed to create cleanup task in __del__: {e}")
                 except Exception:
@@ -85,16 +98,22 @@ class AbstractDeployment(ABC):
         else:
             # 事件循环未运行，尝试同步执行但添加超时保护
             try:
-                # 使用 asyncio.wait_for 添加超时保护（默认 5 秒）
+                # 使用 asyncio.wait_for 添加超时保护（默认 30 秒）
                 loop.run_until_complete(
                     asyncio.wait_for(self.stop(), timeout=30.0)
                 )
             except asyncio.TimeoutError:
+                import sys
+                if sys.meta_path is None:
+                    return  # Python is shutting down
                 try:
                     self.logger.warning("Timeout during __del__ cleanup (30s), forcing exit")
                 except Exception:
                     print("Timeout during __del__ cleanup (30s), forcing exit")
             except Exception as e:
+                import sys
+                if sys.meta_path is None:
+                    return  # Python is shutting down
                 try:
                     self.logger.error(f"Error during __del__ cleanup: {e}")
                 except Exception:
